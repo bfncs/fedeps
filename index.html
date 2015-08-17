@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="de">
+	<head>
+		<meta charset="utf-8">
+
+		<title>Clientseitige Abhängigkeiten in JavaScript verwalten</title>
+
+		<meta name="description" content="Clientseitige Abhängigkeiten in JavaScript verwalten">
+		<meta name="author" content="Marc Löhe">
+
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/black.css" id="theme">
+
+		<!-- Code syntax highlighting -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+
+		<!--[if lt IE 9]>
+		<script src="lib/js/html5shiv.js"></script>
+		<![endif]-->
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section>
+					<h2>Clientseitige Abhängigkeiten in JavaScript verwalten</h2>
+					<p>
+						<small>Von <a href="https://marcloehe.de">Marc Löhe</a> / <a href="https://twitter.com/bfncs">@bfncs</a></small>
+					</p>
+				</section>
+
+				<section>
+					<h2>Struktur</h2>
+					<ol>
+						<li>Status Quo</li>
+						<li>CommonJS Module</li>
+						<li>AMD (Require.js)</li>
+						<li>Browserify</li>
+						<li>ES6 Module</li>
+					</ol>
+				</section>
+
+                <section>
+                    <h2>Status Quo</h2>
+					<pre><code data-trim>
+<script src="jQuery.js"></script>
+<script src="myPreciousPlugin.js"></script>
+<script src="anotherPlugin.js"></script>
+<!-- etc... -->
+<script src="oneMoreplugin.js"></script>
+<script src="dom.js"></script>
+                    </code></pre>
+                </section>
+
+				<section data-transition="none">
+					<h2>Status Quo</h2>
+					<pre><code data-trim>
+(function () {
+	var $ = this.jQuery;
+
+	this.myExample = function () {
+		$.doSomething();
+	};
+}());
+					</code></pre>
+					<small>Beispiel von <a href="http://requirejs.org/docs/whyamd.html#today">requirejs.org</a></small>
+				</section>
+
+				<section>
+					<h2>Status Quo</h2>
+					<ul>
+						<li>Module werden definiert durch eine Factory-Funktion zur Abkopplung vom restlichen Code.</li>
+						<li class="fragment">Abhängigkeiten werden als globale Variablen referenziert, die bereits vorher <em>irgendwie</em> geladen sein müssen.</li>
+						<li class="fragment">Die Abhängigkeiten sind schwach defininiert: der Entwickler muss selber wissen, wann er welchen wie Bestandteil lädt</li></li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>In größerem Projekten</h2>
+					<img src="img/scripts.png" alt="Das eine oder andere Script">
+				</section>
+
+				<section data-background="img/spaghetti.jpg">
+					<h1 style="color:yellow;">Spaghetti!</h1>
+				</section>
+
+				<section>
+					<h2>Maintainability</h2>
+					<blockquote cite="https://groups.google.com/forum/#!msg/comp.lang.c++/rYCO5yn4lXw/oITtSkZOtoUJ">
+						“Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live.”
+					</blockquote>
+					<small><i>John F. Woods</i></small>
+				</section>
+
+				<section>
+					<h2>Wie kann man JavaScript-Code im Browser effizient und übersichtlich modularisieren?</h2>
+				</section>
+
+				<section>
+					<h2>Common JS / Node.js Module</h2>
+					<h4>circle.js</h4>
+					<pre><code data-trim>
+var PI = Math.PI;
+
+exports.area = function (r) {
+return PI * r * r;
+};
+					</code></pre>
+					<h4>app.js</h4>
+					<pre><code data-trim>
+var circle = require('./circle.js');
+console.log( 'The area of a circle of radius 4 is '
++ circle.area(4));
+					</code></pre>
+					<small>Beispiel aus der <a href="https://nodejs.org/api/modules.html#modules_modules">Node.js-Dokumentation</a></small>
+				</section>
+
+				<section>
+					<h2>Common JS im Browser</h2>
+					<p>Das in Node verwendete Modulformat wurde von der CommonJS-Gruppe standardisiert und lässt sich prinzipiell so auch im Browser implementieren. </p>
+				</section>
+
+                <section>
+                    <h2>Common JS im Browser</h2>
+                    <p>Der Standard berücksichtigt aber leider nicht die besonderen technischen Bedingungen im Browser:</p>
+                    <ul>
+                        <li>Module müssen über das Netzwerk geladen werden</li>
+                        <li>Das Laden der Module findet daher grundsätzlich asynchron statt.</li>
+                        <li>Es gibt keine browserübergreifende API, jede Webseite/-anwendung muss ihren eigenen Lademechanismus mitbringen.</li>
+                    </ul>
+                </section>
+
+				<section>
+					<h2>Asynchronous module definition (AMD)</h2>
+					<p>Mit dem AMD-Standard wurde versucht möglichst viele Vorteile von CJS-Modulen in die Welt der Browser zu bringen, in dem es die technischen Eigenheiten der Browser-Infrastruktur berücksichtigt.</p>
+				</section>
+
+				<section>
+					<h2>AMD: API</h2>
+					<ul>
+						<li><code>define</code> um Module zu definieren</li>
+						<li><code>require</code> um Abhängigkeiten zu laden</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>AMD: <code>define</code></h2>
+					<pre><code>
+define(
+  module_id /*optional*/,
+  [dependencies] /*optional*/,
+  definition function /*instantiate the module*/
+);
+					</code></pre>
+					<small class="fragment">Die <code>module_id</code> wird i.d.R. automatisch aus dem Pfad generiert und nicht explizit im Quelltext definiert (DRY).</small>
+				</section>
+
+				<section>
+					<h2>AMD: <code>define</code></h2>
+					<pre><code>
+define(
+  'myModule',
+  ['foo', 'bar'],
+  function (foo, bar) {
+    return myModule = {
+	  doStuff: function() {
+	    console.log('Yay! Stuff');
+	  }
+    };
+});
+					</code></pre>
+				</section>
+
+				<section>
+					<h2>AMD: <code>require</code></h2>
+					<pre><code>
+require(
+  ['foo', 'bar'],
+  function ( foo, bar ) {
+    // Modules foo and bar are now loaded and ready to be used
+    foo.doSomething();
+});
+					</code></pre>
+				</section>
+
+				<section>
+					<h2>AMD: Implementation</h2>
+					<p>Der Standard AMD wird durch mehrere verschiedene JS-Loader-Bibliotheken implementiert:</p>
+					<ul>
+						<li><a href="http://requirejs.org/">require.js</a></li>
+						<li><a href="https://github.com/cujojs/curl">curl.js/RaveJS</a></li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>require.js</h2>
+					<h4>index.html</h4>
+					<pre><code><script data-main="js/app.js" src="js/require.js"></script></code></pre>
+					<h4>js/app.js</h4>
+					<pre><code>
+requirejs.config({
+  baseUrl: 'js/lib',
+  paths: {
+    app: '../app'
+}});
+
+requirejs(
+  ['jquery', 'canvas', 'app/sub'],
+  function   ($, canvas, sub) {
+    // All modules are loaded and can be used now.
+});
+					</code></pre>
+				</section>
+
+				<section>
+					<h2>Pro</h2>
+					<ul>
+						<li>Funktioniert asynchron im Browser</li>
+						<li>Klare Definition der Abhängigkeiten</li>
+						<li>Ermöglicht ein performantes asynchrones Nachladen</li>
+						<li>Mehrere Module können in einer Datei definiert werden (daher ein CJS-Transportformat)</li>
+						<li>Ermöglicht einfachen Austauch von Modulen durch Mockups für Unit-Testing</li>
+					</ul>
+				</section>
+
+                <section>
+                    <h2>Contra</h2>
+                    <ul>
+                        <li>Viele HTTP-Requests, typischerweise ein File pro Library: unperformant</li>
+                        <li>Viel Boilerplate-Code, insbesondere wenn mehrere Loader-Formate unterstützt werden sollen (jQuery+CJS+ASM)</li>
+                        <li>Asynchrones Laden ist im Prinzip eine tolle Sache, aber schadet hier oft mehr, als es nutzt</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2>Browserify</h2>
+                    <blockquote cite="http://browserify.org/">Browserify lets you require('modules') in the browser by bundling up all of your dependencies.</blockquote>
+                </section>
+
+                <section>
+                    <h2>Browserify: Installieren</h2>
+                    <code>npm install -g browserify</code>
+                    <p><small class="fragment">Ggfs. das Modul für das Buildsystem der Wahl mitinstallieren: <a href="https://github.com/jmreidy/grunt-browserify"><code>grunt</code></a>, <a href="https://github.com/gulpjs/gulp/blob/master/docs/recipes/fast-browserify-builds-with-watchify.md"><code>gulp</code></a>, etc.</small></p>
+                </section>
+
+                <section>
+                    <h2>Browserify: Beispiel</h2>
+                    <h4>main.js</h4>
+                    <pre><code>
+var unique = require('uniq');
+var data = [1, 2, 2, 3, 4, 5, 5, 5, 6];
+console.log(unique(data));
+                    </code></pre>
+                    <h4>Modul mit installieren und kompilieren</h4>
+                    <pre><code>
+npm install uniq
+browserify main.js -o bundle.js
+                    </code></pre>
+                    <h4>index.html</h4>
+                    <pre><code>
+<script src="bundle.js"></script>
+                    </code></pre>
+                </section>
+
+                <section>
+                    <h2>ES6 modules</h2>
+                    <h3>mymodule.js</h3>
+                    <pre><code>
+export class q {
+    constructor() {
+        console.log('this is an es6 class!');
+    }
+}
+                    </code></pre>
+                    <h3>mymodule.js</h3>
+                    <pre><code>
+<script>
+    System.import('mymodule').then(function(m) {
+        new m.q();
+    });
+</script>
+                    </code></pre>
+                </section>
+
+                <section>
+                    <h2>Für Unentschlossene</h2>
+                    <h3>SystemJS</h3>
+                    <blockquote cite="https://github.com/systemjs/systemjs">Universal dynamic module loader - loads ES6 modules, AMD, CommonJS and global scripts in the browser and NodeJS. Works with both Traceur and Babel.</blockquote>
+                    <small><a href="https://github.com/systemjs/systemjs">https://github.com/systemjs/systemjs</a></small>
+                </section>
+
+                <section>
+                    <h1>Jetzt ihr:</h1>
+                    <ul>
+                        <li>Welche Techniken benutzt ihr?</li>
+                        <li>Welche Erfahrungen habt ihr gemacht?</li>
+                        <li>Was funktioniert besonders gut/schlecht?</li>
+                        <li>Vermisst ihr etwas?</li>
+                    </ul>
+                </section>
+
+				<section>
+					<h2>Links</h2>
+					<ul>
+						<li><a href="http://addyosmani.com/writing-modular-js/">Writing Modular JavaScript With AMD, CommonJS & ES Harmony</a> by <a href="http://twitter.com/addyosmani">Addy Osmani</a></li>
+						<li><a href="http://requirejs.org/docs/whyamd.html">Why AMD?</a></li>
+						<li><a href="http://tomdale.net/2012/01/amd-is-not-the-answer/">AMD is Not the Answer</a> by Tom Dale</li>
+						<li><a href="http://codeofrob.com/entries/why-i-stopped-using-amd.html">Why I stopped using AMD</a> by Rob Ashton</li>
+						<li><a href="http://esa-matti.suuronen.org/blog/2013/03/22/journey-from-requirejs-to-browserify/">Journey From RequireJS to Browserify</a> by Esa-Matti Suuronen</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>Bilder:</h2>
+
+					<ul>
+						<li><a href="https://www.flickr.com/photos/quinnanya/16885364558/">Victory over spaghetti!</a> by
+							<a href="https://www.flickr.com/photos/quinnanya/">Quinn Dombrowski</a></li>
+					</ul>
+				</section>
+
+			</div>
+
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+
+			// Full list of configuration options available at:
+			// https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+				// Optional reveal.js plugins
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+			});
+
+		</script>
+
+	</body>
+</html>
